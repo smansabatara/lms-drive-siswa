@@ -11,6 +11,13 @@ export default function DashboardGuruPage() {
   const [loading, setLoading] = useState(true);
   const [guruName, setGuruName] = useState<string>("");
 
+  // State untuk Modal Edit Tugas
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [updating, setUpdating] = useState(false);
+
   useEffect(() => {
     const role = localStorage.getItem("userRole");
     const name = localStorage.getItem("guruName");
@@ -29,21 +36,20 @@ export default function DashboardGuruPage() {
   const fetchData = async (currentGuruName: string, currentGuruEmail: string) => {
     setLoading(true);
 
-    // 1. Ambil data Tugas (Filter khusus milik Guru yang sedang login)
+    // 1. Ambil data Tugas
     const { data: assignData, error: assignError } = await supabase
       .from("assignments")
-      .select("*");
+      .select("*")
+      .order("created_at", { ascending: false });
 
     if (assignError) {
       console.error("Gagal mengambil data tugas:", assignError.message);
     } else if (assignData) {
-      // Filter tugas buatan guru aktif (berdasarkan created_by atau teacher_email)
-      // Kode baru (hanya menampilkan jika nama/email benar-benar cocok):
-          const myAssignments = assignData.filter(
-               (task) =>
-               (task.created_by && task.created_by === currentGuruName) ||
-               (task.teacher_email && task.teacher_email === currentGuruEmail)
-            );
+      const myAssignments = assignData.filter(
+        (task) =>
+          (task.created_by && task.created_by === currentGuruName) ||
+          (task.teacher_email && task.teacher_email === currentGuruEmail)
+      );
       setAssignments(myAssignments);
     }
 
@@ -74,6 +80,75 @@ export default function DashboardGuruPage() {
       const name = localStorage.getItem("guruName") || "";
       const email = localStorage.getItem("guruEmail") || "";
       fetchData(name, email);
+    }
+  };
+
+  // Fungsi Hapus Tugas & File di Supabase Storage
+  const handleDeleteTask = async (taskId: string, attachmentUrl: string) => {
+    if (!confirm("Yakin ingin menghapus tugas ini? Data dan file terkait akan dihapus permanen.")) return;
+
+    try {
+      // A. Hapus file lampiran dari Supabase Storage jika ada
+      if (attachmentUrl && attachmentUrl.includes("supabase.co")) {
+        const parts = attachmentUrl.split("/");
+        const fileName = parts[parts.length - 1];
+        if (fileName) {
+          await supabase.storage.from("assignments").remove([fileName]);
+        }
+      }
+
+      // B. Hapus relasi di assignment_classes terlebih dahulu
+      await supabase.from("assignment_classes").delete().eq("assignment_id", taskId);
+
+      // C. Hapus data utama dari tabel assignments
+      const { error } = await supabase.from("assignments").delete().eq("id", taskId);
+      if (error) throw error;
+
+      alert("Tugas berhasil dihapus!");
+      const name = localStorage.getItem("guruName") || "";
+      const email = localStorage.getItem("guruEmail") || "";
+      fetchData(name, email);
+    } catch (err: any) {
+      alert("Gagal menghapus tugas: " + err.message);
+    }
+  };
+
+  // Fungsi Buka Modal Edit
+  const openEditModal = (task: any) => {
+    setEditingTask(task);
+    setEditTitle(task.title);
+    setEditDescription(task.description || "");
+    const formattedDate = task.due_date ? new Date(task.due_date).toISOString().slice(0, 16) : "";
+    setEditDueDate(formattedDate);
+  };
+
+  // Fungsi Simpan Perubahan Edit Tugas
+  const handleUpdateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask) return;
+
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("assignments")
+        .update({
+          title: editTitle,
+          description: editDescription,
+          due_date: new Date(editDueDate).toISOString(),
+        })
+        .eq("id", editingTask.id);
+
+      if (error) throw error;
+
+      alert("Tugas berhasil diperbarui!");
+      setEditingTask(null);
+      const name = localStorage.getItem("guruName") || "";
+      const email = localStorage.getItem("guruEmail") || "";
+      fetchData(name, email);
+    } catch (err: any) {
+      alert("Gagal memperbarui tugas: " + err.message);
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -163,22 +238,37 @@ export default function DashboardGuruPage() {
               >
                 {/* Header Kartu Tugas */}
                 <div className="p-5 bg-gray-50 border-b border-gray-200">
-                  <div className="flex justify-between items-start gap-2 mb-2">
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2.5 py-1 rounded-md font-bold">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2.5 py-1 rounded-md font-bold uppercase">
                       {task.course_name || task.subject || "Mata Pelajaran"}
                     </span>
-                    {(task.due_date || task.deadline) && (
-                      <span className="text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded border border-red-100">
-                        ⏰ Deadline:{" "}
-                        {task.due_date
-                          ? new Date(task.due_date).toLocaleDateString("id-ID")
-                          : task.deadline}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {(task.due_date || task.deadline) && (
+                        <span className="text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded border border-red-100">
+                          ⏰ Deadline:{" "}
+                          {task.due_date
+                            ? new Date(task.due_date).toLocaleDateString("id-ID")
+                            : task.deadline}
+                        </span>
+                      )}
+                      {/* Tombol Edit & Hapus Tugas */}
+                      <button
+                        onClick={() => openEditModal(task)}
+                        className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs px-2.5 py-1 rounded font-bold transition"
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTask(task.id, task.attachment_url)}
+                        className="bg-red-500 hover:bg-red-600 text-white text-xs px-2.5 py-1 rounded font-bold transition"
+                      >
+                        🗑️ Hapus
+                      </button>
+                    </div>
                   </div>
                   <h3 className="text-lg font-bold text-gray-900">{task.title}</h3>
                   {task.description && (
-                    <p className="text-xs text-gray-600 mt-1">{task.description}</p>
+                    <p className="text-xs text-gray-600 mt-1 whitespace-pre-line">{task.description}</p>
                   )}
                 </div>
 
@@ -201,7 +291,7 @@ export default function DashboardGuruPage() {
                           <tr>
                             <th className="p-2.5 font-bold">Nama Siswa</th>
                             <th className="p-2.5 font-bold">Email</th>
-                            <th className="p-2.5 font-bold">Link File Drive</th>
+                            <th className="p-2.5 font-bold">Link File / Jawaban</th>
                             <th className="p-2.5 font-bold">Nilai</th>
                             <th className="p-2.5 font-bold">Aksi</th>
                           </tr>
@@ -221,7 +311,7 @@ export default function DashboardGuruPage() {
                                     rel="noopener noreferrer"
                                     className="text-blue-600 hover:underline font-medium flex items-center gap-1"
                                   >
-                                    📁 Buka File Drive
+                                    📁 Buka File Siswa
                                   </a>
                                 ) : (
                                   <span className="text-gray-400 italic">Tidak ada link</span>
@@ -261,6 +351,66 @@ export default function DashboardGuruPage() {
           })
         )}
       </div>
+
+      {/* Modal Popup Edit Tugas */}
+      {editingTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full text-black shadow-xl">
+            <h3 className="text-xl font-bold mb-4">Edit Tugas</h3>
+
+            <form onSubmit={handleUpdateTask} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1">Judul Tugas</label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full p-2 border rounded text-sm bg-white text-black"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1">Deskripsi & Petunjuk</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full p-2 border rounded text-sm bg-white text-black"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1">Batas Waktu</label>
+                <input
+                  type="datetime-local"
+                  value={editDueDate}
+                  onChange={(e) => setEditDueDate(e.target.value)}
+                  className="w-full p-2 border rounded text-sm bg-white text-black"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setEditingTask(null)}
+                  className="px-4 py-2 text-sm bg-gray-200 rounded font-medium hover:bg-gray-300"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={updating}
+                  className="px-4 py-2 text-sm bg-yellow-500 text-white rounded font-bold hover:bg-yellow-600 disabled:bg-gray-400"
+                >
+                  {updating ? "Menyimpan..." : "Simpan Perubahan"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
