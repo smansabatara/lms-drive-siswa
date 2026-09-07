@@ -1,21 +1,43 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { useSession, signIn, signOut } from "next-auth/react"; // Menambahkan fungsi signIn dan signOut
 
 export default function SiswaTugasPage() {
-  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  // State Session Manual
+  const [studentName, setStudentName] = useState("");
+  const [studentEmail, setStudentEmail] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const [classes, setClasses] = useState<any[]>([]);
   const [selectedClass, setSelectedClass] = useState("");
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // State Modal Upload
+  // State Modal Login Manual & Upload
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [inputName, setInputName] = useState("");
+  const [inputEmail, setInputEmail] = useState("");
+
   const [activeTask, setActiveTask] = useState<any | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Cek sesi lokal saat pertama kali buka halaman
+  useEffect(() => {
+    const savedRole = localStorage.getItem("userRole");
+    const savedName = localStorage.getItem("studentName");
+    const savedEmail = localStorage.getItem("studentEmail");
+
+    if (savedRole === "siswa" && savedName && savedEmail) {
+      setStudentName(savedName);
+      setStudentEmail(savedEmail);
+      setIsLoggedIn(true);
+    }
+  }, []);
 
   // 1. Ambil daftar kelas
   useEffect(() => {
@@ -57,14 +79,42 @@ export default function SiswaTugasPage() {
     fetchAssignments();
   }, [selectedClass]);
 
-  // 3. Upload File Jawaban ke Supabase Storage & Simpan ke DB berdasarkan Akun Login
+  // Handle Login Manual
+  const handleManualLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputName.trim() || !inputEmail.trim()) {
+      alert("Nama dan Email wajib diisi!");
+      return;
+    }
+
+    localStorage.setItem("userRole", "siswa");
+    localStorage.setItem("studentName", inputName.trim());
+    localStorage.setItem("studentEmail", inputEmail.trim());
+
+    setStudentName(inputName.trim());
+    setStudentEmail(inputEmail.trim());
+    setIsLoggedIn(true);
+    setShowLoginModal(false);
+    setInputName("");
+    setInputEmail("");
+    alert("Berhasil masuk! Silakan pilih kelas.");
+  };
+
+  // Handle Logout
+  const handleLogout = () => {
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("studentName");
+    localStorage.removeItem("studentEmail");
+    setIsLoggedIn(false);
+    setStudentName("");
+    setStudentEmail("");
+  };
+
+  // 3. Upload File Jawaban ke Supabase Storage & Simpan ke DB
   const handleSubmitJawaban = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) return alert("Pilih file tugas dari HP/laptop kamu dulu!");
     if (!activeTask) return;
-
-    const studentName = session?.user?.name || "Siswa";
-    const studentEmail = session?.user?.email;
 
     if (!studentEmail) {
       return alert("Sesi login tidak ditemukan. Silakan login terlebih dahulu!");
@@ -106,7 +156,7 @@ export default function SiswaTugasPage() {
 
       if (dbError) throw dbError;
 
-      alert("Tugas berhasil dikumpulkan dengan akun resmi kamu!");
+      alert("Tugas berhasil dikumpulkan!");
 
       // Reset Modal & Form
       setActiveTask(null);
@@ -120,32 +170,30 @@ export default function SiswaTugasPage() {
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white text-black min-h-screen">
-      {/* Header & Tombol Login/Logout */}
+      {/* Header & Status Login Manual */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b pb-4">
         <h1 className="text-2xl font-bold">Daftar Tugas Siswa</h1>
 
         <div>
-          {status === "loading" ? (
-            <span className="text-xs text-gray-400">Memuat sesi...</span>
-          ) : session?.user ? (
+          {isLoggedIn ? (
             <div className="flex items-center gap-3">
               <div className="text-right text-xs">
-                <span className="block font-bold text-gray-800">{session.user.name}</span>
-                <span className="text-gray-500">{session.user.email}</span>
+                <span className="block font-bold text-gray-800">{studentName}</span>
+                <span className="text-gray-500">{studentEmail}</span>
               </div>
               <button
-                onClick={() => signOut()}
+                onClick={handleLogout}
                 className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1.5 rounded font-bold transition"
               >
-                Logout
+                Keluar
               </button>
             </div>
           ) : (
             <button
-              onClick={() => signIn()}
+              onClick={() => setShowLoginModal(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2 rounded font-bold transition"
             >
-              🔑 Login dengan Google
+              🔑 Masuk (Login Siswa)
             </button>
           )}
         </div>
@@ -212,9 +260,9 @@ export default function SiswaTugasPage() {
 
                 <button
                   onClick={() => {
-                    if (!session?.user) {
+                    if (!isLoggedIn) {
                       alert("Silakan login terlebih dahulu untuk mengumpulkan tugas!");
-                      signIn();
+                      setShowLoginModal(true);
                       return;
                     }
                     setActiveTask(task);
@@ -229,8 +277,60 @@ export default function SiswaTugasPage() {
         </div>
       )}
 
+      {/* Modal Popup Login Siswa Manual */}
+      {showLoginModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full text-black shadow-xl">
+            <h3 className="text-xl font-bold mb-1">Login Siswa</h3>
+            <p className="text-xs text-gray-500 mb-4">Masukkan identitas kamu untuk mengumpulkan tugas.</p>
+
+            <form onSubmit={handleManualLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1">Nama Lengkap</label>
+                <input
+                  type="text"
+                  value={inputName}
+                  onChange={(e) => setInputName(e.target.value)}
+                  placeholder="Contoh: Budi Santoso"
+                  className="w-full p-2.5 border rounded text-sm bg-white text-black"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1">Email / Kontak</label>
+                <input
+                  type="email"
+                  value={inputEmail}
+                  onChange={(e) => setInputEmail(e.target.value)}
+                  placeholder="Contoh: budi@gmail.com"
+                  className="w-full p-2.5 border rounded text-sm bg-white text-black"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowLoginModal(false)}
+                  className="px-4 py-2 text-sm bg-gray-200 rounded font-medium hover:bg-gray-300"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded font-bold hover:bg-blue-700"
+                >
+                  Masuk
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal Popup Upload File */}
-      {activeTask && session?.user && (
+      {activeTask && isLoggedIn && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full text-black shadow-xl">
             <h3 className="text-xl font-bold mb-1">Kumpul Tugas</h3>
@@ -239,8 +339,8 @@ export default function SiswaTugasPage() {
             <form onSubmit={handleSubmitJawaban} className="space-y-4">
               <div className="bg-blue-50 border border-blue-200 p-3 rounded text-xs text-blue-900">
                 <p className="font-semibold">Informasi Pengirim:</p>
-                <p>Nama: <span className="font-bold">{session.user.name}</span></p>
-                <p>Email: <span className="font-bold">{session.user.email}</span></p>
+                <p>Nama: <span className="font-bold">{studentName}</span></p>
+                <p>Email: <span className="font-bold">{studentEmail}</span></p>
                 <p className="text-[10px] text-gray-500 mt-1">*Tugas akan tercatat otomatis atas nama akun ini.</p>
               </div>
 
