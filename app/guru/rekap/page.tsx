@@ -19,7 +19,7 @@ export default function RekapNilaiPage() {
     fetchClasses();
   }, []);
 
-  // 2. Ambil data pengumpulan & nilai berdasarkan kelas
+  // 2. Ambil data pengumpulan & nilai berdasarkan kelas yang dipilih
   useEffect(() => {
     async function fetchRekapData() {
       setLoading(true);
@@ -32,12 +32,18 @@ export default function RekapNilaiPage() {
           student_email,
           grade,
           is_late,
+          class_id,
           created_at,
           assignments (
             title,
             course_name
           )
         `);
+
+      // Jika kelas dipilih, filter berdasarkan class_id di tabel submissions
+      if (selectedClass) {
+        query = query.eq("class_id", selectedClass);
+      }
 
       const { data, error } = await query;
 
@@ -111,7 +117,7 @@ export default function RekapNilaiPage() {
         <p className="text-gray-500 italic">Memuat rekapan nilai...</p>
       ) : filteredSubmissions.length === 0 ? (
         <div className="p-4 border rounded bg-gray-50 text-gray-500 text-center">
-          Belum ada data nilai yang tersimpan.
+          Belum ada data nilai yang tersimpan. (Pastikan siswa sudah mengumpulkan tugas atau pilih "Semua Kelas").
         </div>
       ) : (
         <div className="overflow-x-auto border rounded-lg shadow-sm">
@@ -154,7 +160,11 @@ export default function RekapNilaiPage() {
                     )}
                   </td>
                   <td className="p-3 text-center font-bold text-lg text-blue-600">
-                    {item.grade !== null && item.grade !== "" ? item.grade : <span className="text-gray-300 italic text-sm">Belum dinilai</span>}
+                    {item.grade !== null && item.grade !== "" ? (
+                      item.grade
+                    ) : (
+                      <span className="text-gray-300 italic text-sm">Belum dinilai</span>
+                    )}
                   </td>
                 </tr>
               ))}
