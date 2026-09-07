@@ -4,14 +4,27 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 export default function RekapNilaiPage() {
+  const [classes, setClasses] = useState<any[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string>("");
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
 
-  // Ambil seluruh data submission dan relasi tugasnya secara langsung
+  // 1. Ambil daftar kelas untuk filter dropdown
+  useEffect(() => {
+    async function fetchClasses() {
+      const { data } = await supabase.from("classes").select("*").order("name");
+      if (data) setClasses(data);
+    }
+    fetchClasses();
+  }, []);
+
+  // 2. Ambil data pengumpulan & nilai
   useEffect(() => {
     async function fetchRekapData() {
       setLoading(true);
+
+      // Ambil data submission beserta data tugasnya
       const { data, error } = await supabase
         .from("submissions")
         .select(`
@@ -21,7 +34,9 @@ export default function RekapNilaiPage() {
           grade,
           is_late,
           created_at,
+          assignment_id,
           assignments (
+            id,
             title,
             course_name
           )
@@ -31,13 +46,28 @@ export default function RekapNilaiPage() {
       if (error) {
         console.error("Gagal mengambil data rekap:", error.message);
       } else if (data) {
-        setSubmissions(data);
+        // Jika kelas dipilih, kita saring berdasarkan penugasan kelas tersebut
+        if (selectedClass) {
+          // Ambil dulu assignment_id yang terhubung ke kelas yang dipilih
+          const { data: classAssignments } = await supabase
+            .from("assignment_classes")
+            .select("assignment_id")
+            .eq("class_id", selectedClass);
+
+          const validAssignmentIds = classAssignments?.map((item) => item.assignment_id) || [];
+          
+          // Saring submissions yang tugasnya ada di kelas tersebut
+          const filteredByClass = data.filter((sub) => validAssignmentIds.includes(sub.assignment_id));
+          setSubmissions(filteredByClass);
+        } else {
+          setSubmissions(data);
+        }
       }
       setLoading(false);
     }
 
     fetchRekapData();
-  }, []);
+  }, [selectedClass]);
 
   // Filter pencarian nama siswa
   const filteredSubmissions = submissions.filter((item) =>
@@ -50,7 +80,7 @@ export default function RekapNilaiPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">📊 Rekap Nilai Siswa</h1>
           <p className="text-sm text-gray-600">
-            Laporan seluruh pengumpulan dan nilai tugas siswa.
+            Laporan pengumpulan dan rekapan nilai akhir seluruh siswa.
           </p>
         </div>
 
@@ -63,16 +93,34 @@ export default function RekapNilaiPage() {
         </button>
       </div>
 
-      {/* Pencarian Nama Siswa */}
-      <div className="mb-6">
-        <label className="block text-xs font-semibold mb-1">Cari Nama Siswa:</label>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Ketik nama siswa..."
-          className="w-full sm:w-1/2 p-2 border rounded bg-white text-black"
-        />
+      {/* Filter & Pencarian */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="w-full sm:w-1/3">
+          <label className="block text-xs font-semibold mb-1">Filter Kelas:</label>
+          <select
+            value={selectedClass}
+            onChange={(e) => setSelectedClass(e.target.value)}
+            className="w-full p-2 border rounded bg-white text-black font-medium"
+          >
+            <option value="">Semua Kelas</option>
+            {classes.map((cls) => (
+              <option key={cls.id} value={cls.id}>
+                Kelas {cls.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="w-full sm:w-2/3">
+          <label className="block text-xs font-semibold mb-1">Cari Nama Siswa:</label>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Ketik nama siswa..."
+            className="w-full p-2 border rounded bg-white text-black"
+          />
+        </div>
       </div>
 
       {/* Tabel Rekapitulasi */}
@@ -80,7 +128,7 @@ export default function RekapNilaiPage() {
         <p className="text-gray-500 italic">Memuat rekapan nilai...</p>
       ) : filteredSubmissions.length === 0 ? (
         <div className="p-4 border rounded bg-gray-50 text-gray-500 text-center">
-          Belum ada data nilai atau pengumpulan tugas dari siswa.
+          Belum ada data nilai yang tersimpan untuk filter ini.
         </div>
       ) : (
         <div className="overflow-x-auto border rounded-lg shadow-sm">
