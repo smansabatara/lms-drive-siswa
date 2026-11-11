@@ -18,20 +18,20 @@ export default function BuatTugasPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    async function fetchClasses() {
-      const { data, error } = await supabase
-        .from("classes")
-        .select("*")
-        .order("name", { ascending: true });
+  async function fetchClasses() {
+    const { data, error } = await supabase
+      .from("classes")
+      .select("*")
+      .order("name");
 
-      if (error) {
-        console.error("Gagal mengambil data kelas:", error.message);
-      } else if (data) {
-        setClasses(data);
-      }
+    if (error) {
+      console.error("Gagal mengambil data kelas:", error.message);
+    } else if (data) {
+      setClasses(data);
     }
-    fetchClasses();
-  }, []);
+  }
+  fetchClasses();
+}, []);
 
   const handleClassToggle = (classId: string) => {
     setSelectedClasses((prev) =>
