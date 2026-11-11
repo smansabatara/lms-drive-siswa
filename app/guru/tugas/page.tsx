@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 export default function BuatTugasPage() {
   const router = useRouter();
   const [classes, setClasses] = useState<any[]>([]);
+  const [classLoading, setClassLoading] = useState<boolean>(true);
 
   // State Input
   const [courseName, setCourseName] = useState("");
@@ -18,20 +19,22 @@ export default function BuatTugasPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-  async function fetchClasses() {
-    const { data, error } = await supabase
-      .from("classes")
-      .select("*")
-      .order("name");
+    async function fetchClasses() {
+      setClassLoading(true);
+      const { data, error } = await supabase
+        .from("classes")
+        .select("*")
+        .order("name");
 
-    if (error) {
-      console.error("Gagal mengambil data kelas:", error.message);
-    } else if (data) {
-      setClasses(data);
+      if (error) {
+        console.error("Gagal mengambil data kelas:", error.message);
+      } else if (data) {
+        setClasses(data);
+      }
+      setClassLoading(false);
     }
-  }
-  fetchClasses();
-}, []);
+    fetchClasses();
+  }, []);
 
   const handleClassToggle = (classId: string) => {
     setSelectedClasses((prev) =>
@@ -132,9 +135,13 @@ export default function BuatTugasPage() {
           <label className="block font-medium mb-2 text-sm">
             2. Target Kelas (Bisa Pilih Banyak)
           </label>
-          {classes.length === 0 ? (
-            <p className="text-xs text-red-500 italic">
+          {classLoading ? (
+            <p className="text-xs text-blue-600 italic font-medium">
               Memuat data kelas...
+            </p>
+          ) : classes.length === 0 ? (
+            <p className="text-xs text-red-500 italic p-2 border rounded bg-red-50">
+              Belum ada data kelas di database. Silakan isi tabel classes di Supabase.
             </p>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 border p-3 rounded bg-gray-50">
