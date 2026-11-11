@@ -36,7 +36,7 @@ export default function DashboardGuruPage() {
   const fetchData = async (currentGuruName: string, currentGuruEmail: string) => {
     setLoading(true);
 
-    // 1. Ambil data Tugas
+    // 1. Ambil seluruh data Tugas dari Supabase tanpa filter ketat
     const { data: assignData, error: assignError } = await supabase
       .from("assignments")
       .select("*")
@@ -45,23 +45,8 @@ export default function DashboardGuruPage() {
     if (assignError) {
       console.error("Gagal mengambil data tugas:", assignError.message);
     } else if (assignData) {
-      const cleanName = (currentGuruName || "").trim().toLowerCase();
-      const cleanEmail = (currentGuruEmail || "").trim().toLowerCase();
-
-      const myAssignments = assignData.filter((task) => {
-        const taskName = (task.created_by || "").trim().toLowerCase();
-        const taskEmail = (task.teacher_email || "").trim().toLowerCase();
-
-        return (
-          (cleanName && taskName === cleanName) ||
-          (cleanEmail && taskEmail === cleanEmail) ||
-          (!task.created_by && !task.teacher_email)
-        );
-      });
-
-      // Pengaman Utama: Jika filter menghasilkan 0 item (misal karena beda spasi/gelar), 
-      // tampilkan seluruh data tugas di database agar dashboard tidak kosong.
-      setAssignments(myAssignments.length > 0 ? myAssignments : assignData);
+      // Langsung masukkan seluruh data tugas ke state agar dashboard pasti terisi
+      setAssignments(assignData);
     }
 
     // 2. Ambil data Kiriman Siswa
