@@ -25,9 +25,6 @@ export default function RekapNilaiPage() {
     fetchClassesAndSubmissions(name || "", email || "");
   }, [router]);
 
-  // Ambil data kelas dan rekap nilai khusus tugas milik guru yang login
-  const async fetchData = async (guruName: string, guruEmail: string) => {} // placeholder structure handled below
-  
   const fetchClassesAndSubmissions = async (guruName: string, guruEmail: string) => {
     setLoading(true);
 
@@ -35,7 +32,7 @@ export default function RekapNilaiPage() {
     const { data: classData } = await supabase.from("classes").select("*").order("name");
     if (classData) setClasses(classData);
 
-    // 2. Ambil data tugas yang dibuat oleh guru ini saja
+    // 2. Ambil data tugas
     const { data: assignData } = await supabase.from("assignments").select("*");
     
     if (assignData) {
@@ -95,7 +92,6 @@ export default function RekapNilaiPage() {
           </p>
         </div>
 
-        {/* Tombol Navigasi & Cetak */}
         <div className="flex items-center gap-2">
           <a
             href="/guru"
@@ -112,7 +108,6 @@ export default function RekapNilaiPage() {
         </div>
       </div>
 
-      {/* Filter & Pencarian */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="w-full sm:w-1/3">
           <label className="block text-xs font-semibold mb-1">Filter Kelas:</label>
@@ -142,7 +137,6 @@ export default function RekapNilaiPage() {
         </div>
       </div>
 
-      {/* Tabel Rekapitulasi */}
       {loading ? (
         <p className="text-gray-500 italic text-sm">Memuat rekapan nilai...</p>
       ) : filteredSubmissions.length === 0 ? (
