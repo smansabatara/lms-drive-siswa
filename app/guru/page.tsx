@@ -36,7 +36,7 @@ export default function DashboardGuruPage() {
   const fetchData = async (currentGuruName: string, currentGuruEmail: string) => {
     setLoading(true);
 
-    // 1. Ambil data Tugas
+    // 1. Ambil data Tugas dari Supabase
     const { data: assignData, error: assignError } = await supabase
       .from("assignments")
       .select("*")
@@ -45,11 +45,22 @@ export default function DashboardGuruPage() {
     if (assignError) {
       console.error("Gagal mengambil data tugas:", assignError.message);
     } else if (assignData) {
-      const myAssignments = assignData.filter(
-        (task) =>
-          (task.created_by && task.created_by === currentGuruName) ||
-          (task.teacher_email && task.teacher_email === currentGuruEmail)
-      );
+      // Bersihkan string dari spasi berlebih dan samakan ke huruf kecil
+      const cleanName = currentGuruName ? currentGuruName.trim().toLowerCase() : "";
+      const cleanEmail = currentGuruEmail ? currentGuruEmail.trim().toLowerCase() : "";
+
+      const myAssignments = assignData.filter((task) => {
+        const taskName = task.created_by ? task.created_by.trim().toLowerCase() : "";
+        const taskEmail = task.teacher_email ? task.teacher_email.trim().toLowerCase() : "";
+
+        // Tampilkan jika nama cocok, email cocok, atau jika kolom pembuat di database masih kosong
+        return (
+          (cleanName && taskName === cleanName) ||
+          (cleanEmail && taskEmail === cleanEmail) ||
+          (!task.created_by && !task.teacher_email)
+        );
+      });
+
       setAssignments(myAssignments);
     }
 
