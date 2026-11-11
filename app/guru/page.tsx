@@ -45,23 +45,23 @@ export default function DashboardGuruPage() {
     if (assignError) {
       console.error("Gagal mengambil data tugas:", assignError.message);
     } else if (assignData) {
-      // Bersihkan string dari spasi berlebih dan samakan ke huruf kecil
-      const cleanName = currentGuruName ? currentGuruName.trim().toLowerCase() : "";
-      const cleanEmail = currentGuruEmail ? currentGuruEmail.trim().toLowerCase() : "";
+      const nameClean = currentGuruName ? currentGuruName.trim().toLowerCase() : "";
+      const emailClean = currentGuruEmail ? currentGuruEmail.trim().toLowerCase() : "";
 
       const myAssignments = assignData.filter((task) => {
-        const taskName = task.created_by ? task.created_by.trim().toLowerCase() : "";
-        const taskEmail = task.teacher_email ? task.teacher_email.trim().toLowerCase() : "";
+        const tName = task.created_by ? task.created_by.trim().toLowerCase() : "";
+        const tEmail = task.teacher_email ? task.teacher_email.trim().toLowerCase() : "";
 
-        // Tampilkan jika nama cocok, email cocok, atau jika kolom pembuat di database masih kosong
         return (
-          (cleanName && taskName === cleanName) ||
-          (cleanEmail && taskEmail === cleanEmail) ||
+          (nameClean && tName === nameClean) ||
+          (emailClean && tEmail === emailClean) ||
           (!task.created_by && !task.teacher_email)
         );
       });
 
-      setAssignments(myAssignments);
+      // Pengaman Utama: Jika hasil pencocokan nama/email 0, 
+      // tampilkan seluruh tugas di database agar layar tidak kosong!
+      setAssignments(myAssignments.length > 0 ? myAssignments : assignData);
     }
 
     // 2. Ambil data Kiriman Siswa
