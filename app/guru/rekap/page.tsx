@@ -19,10 +19,10 @@ export default function RekapNilaiPage() {
       return;
     }
 
-    fetchClassesAndSubmissions();
+    fetchRekapData();
   }, [router]);
 
-  const fetchClassesAndSubmissions = async () => {
+  const fetchRekapData = async () => {
     setLoading(true);
 
     // 1. Ambil daftar kelas untuk dropdown filter
@@ -32,7 +32,7 @@ export default function RekapNilaiPage() {
       .order("name");
     if (classData) setClasses(classData);
 
-    // 2. Ambil data seluruh pengumpulan tugas siswa
+    // 2. Ambil seluruh data pengumpulan nilai dan relasi tugasnya
     const { data: subData, error: subError } = await supabase
       .from("submissions")
       .select(`
