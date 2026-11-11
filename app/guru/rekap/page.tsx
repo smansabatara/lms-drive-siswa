@@ -1,73 +1,64 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export default function RekapNilaiPage() {
+  const router = useRouter();
   const [classes, setClasses] = useState<any[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // 1. Ambil daftar kelas untuk filter dropdown
   useEffect(() => {
-    async function fetchClasses() {
-      const { data } = await supabase.from("classes").select("*").order("name");
-      if (data) setClasses(data);
+    const role = localStorage.getItem("userRole");
+    if (role !== "guru") {
+      router.push("/");
+      return;
     }
-    fetchClasses();
-  }, []);
 
-  // 2. Ambil data pengumpulan & nilai
-  useEffect(() => {
-    async function fetchRekapData() {
-      setLoading(true);
+    fetchClassesAndSubmissions();
+  }, [router]);
 
-      // Ambil data submission beserta data tugasnya
-      const { data, error } = await supabase
-        .from("submissions")
-        .select(`
+  const fetchClassesAndSubmissions = async () => {
+    setLoading(true);
+
+    // 1. Ambil daftar kelas untuk dropdown filter
+    const { data: classData } = await supabase
+      .from("classes")
+      .select("*")
+      .order("name");
+    if (classData) setClasses(classData);
+
+    // 2. Ambil data seluruh pengumpulan tugas siswa
+    const { data: subData, error: subError } = await supabase
+      .from("submissions")
+      .select(`
+        id,
+        student_name,
+        student_email,
+        grade,
+        is_late,
+        created_at,
+        assignment_id,
+        assignments (
           id,
-          student_name,
-          student_email,
-          grade,
-          is_late,
-          created_at,
-          assignment_id,
-          assignments (
-            id,
-            title,
-            course_name
-          )
-        `)
-        .order("created_at", { ascending: false });
+          title,
+          course_name
+        )
+      `)
+      .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Gagal mengambil data rekap:", error.message);
-      } else if (data) {
-        // Jika kelas dipilih, kita saring berdasarkan penugasan kelas tersebut
-        if (selectedClass) {
-          // Ambil dulu assignment_id yang terhubung ke kelas yang dipilih
-          const { data: classAssignments } = await supabase
-            .from("assignment_classes")
-            .select("assignment_id")
-            .eq("class_id", selectedClass);
-
-          const validAssignmentIds = classAssignments?.map((item) => item.assignment_id) || [];
-          
-          // Saring submissions yang tugasnya ada di kelas tersebut
-          const filteredByClass = data.filter((sub) => validAssignmentIds.includes(sub.assignment_id));
-          setSubmissions(filteredByClass);
-        } else {
-          setSubmissions(data);
-        }
-      }
-      setLoading(false);
+    if (subError) {
+      console.error("Gagal mengambil data rekap:", subError.message);
+    } else if (subData) {
+      setSubmissions(subData);
     }
 
-    fetchRekapData();
-  }, [selectedClass]);
+    setLoading(false);
+  };
 
   // Filter pencarian nama siswa
   const filteredSubmissions = submissions.filter((item) =>
@@ -84,13 +75,20 @@ export default function RekapNilaiPage() {
           </p>
         </div>
 
-        {/* Tombol Cetak / Export */}
-        <button
-          onClick={() => window.print()}
-          className="bg-green-600 hover:bg-green-700 text-white text-sm px-4 py-2 rounded font-bold self-start md:self-auto"
-        >
-          🖨️ Cetak / Simpan PDF
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/guru"
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs px-3 py-2 rounded font-bold transition"
+          >
+            ← Kembali ke Dashboard
+          </a>
+          <button
+            onClick={() => window.print()}
+            className="bg-green-600 hover:bg-green-700 text-white text-xs px-4 py-2 rounded font-bold"
+          >
+            🖨️ Cetak / Simpan PDF
+          </button>
+        </div>
       </div>
 
       {/* Filter & Pencarian */}
@@ -100,7 +98,7 @@ export default function RekapNilaiPage() {
           <select
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
-            className="w-full p-2 border rounded bg-white text-black font-medium"
+            className="w-full p-2 border rounded bg-white text-black font-medium text-xs"
           >
             <option value="">Semua Kelas</option>
             {classes.map((cls) => (
@@ -118,32 +116,32 @@ export default function RekapNilaiPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Ketik nama siswa..."
-            className="w-full p-2 border rounded bg-white text-black"
+            className="w-full p-2 border rounded bg-white text-black text-xs"
           />
         </div>
       </div>
 
       {/* Tabel Rekapitulasi */}
       {loading ? (
-        <p className="text-gray-500 italic">Memuat rekapan nilai...</p>
+        <p className="text-gray-500 italic text-sm">Memuat rekapan nilai...</p>
       ) : filteredSubmissions.length === 0 ? (
-        <div className="p-4 border rounded bg-gray-50 text-gray-500 text-center">
-          Belum ada data nilai yang tersimpan untuk filter ini.
+        <div className="p-6 border rounded bg-gray-50 text-gray-500 text-center text-sm">
+          Belum ada data nilai yang tersimpan dari siswa.
         </div>
       ) : (
         <div className="overflow-x-auto border rounded-lg shadow-sm">
           <table className="w-full text-left border-collapse bg-white">
-            <thead className="bg-gray-100 text-gray-800 border-b">
+            <thead className="bg-gray-100 text-gray-800 border-b text-xs">
               <tr>
-                <th className="p-3 text-sm font-bold">No</th>
-                <th className="p-3 text-sm font-bold">Nama Siswa</th>
-                <th className="p-3 text-sm font-bold">Mata Pelajaran</th>
-                <th className="p-3 text-sm font-bold">Judul Tugas</th>
-                <th className="p-3 text-sm font-bold text-center">Status</th>
-                <th className="p-3 text-sm font-bold text-center">Nilai</th>
+                <th className="p-3 font-bold">No</th>
+                <th className="p-3 font-bold">Nama Siswa</th>
+                <th className="p-3 font-bold">Mata Pelajaran</th>
+                <th className="p-3 font-bold">Judul Tugas</th>
+                <th className="p-3 font-bold text-center">Status</th>
+                <th className="p-3 font-bold text-center">Nilai</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 text-sm text-gray-800">
+            <tbody className="divide-y divide-gray-200 text-xs text-gray-800">
               {filteredSubmissions.map((item, index) => (
                 <tr key={item.id} className="hover:bg-gray-50">
                   <td className="p-3 font-medium text-gray-500">{index + 1}</td>
@@ -154,27 +152,27 @@ export default function RekapNilaiPage() {
                     </span>
                   </td>
                   <td className="p-3">
-                    <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-0.5 rounded">
+                    <span className="bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded">
                       {item.assignments?.course_name || "-"}
                     </span>
                   </td>
                   <td className="p-3">{item.assignments?.title || "-"}</td>
                   <td className="p-3 text-center">
                     {item.is_late ? (
-                      <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded font-semibold">
+                      <span className="bg-red-100 text-red-700 px-2 py-1 rounded font-semibold">
                         Terlambat
                       </span>
                     ) : (
-                      <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded font-semibold">
+                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded font-semibold">
                         Tepat Waktu
                       </span>
                     )}
                   </td>
-                  <td className="p-3 text-center font-bold text-lg text-blue-600">
+                  <td className="p-3 text-center font-bold text-sm text-blue-600">
                     {item.grade !== null && item.grade !== "" ? (
                       item.grade
                     ) : (
-                      <span className="text-gray-300 italic text-sm">Belum dinilai</span>
+                      <span className="text-gray-300 italic">Belum dinilai</span>
                     )}
                   </td>
                 </tr>
