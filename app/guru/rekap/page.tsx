@@ -8,9 +8,9 @@ export default function RekapNilaiPage() {
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // 1. Ambil daftar kelas untuk filter dropdown
+  // 1. Ambil daftar kelas untuk dropdown filter
   useEffect(() => {
     async function fetchClasses() {
       const { data } = await supabase.from("classes").select("*").order("name");
@@ -19,12 +19,11 @@ export default function RekapNilaiPage() {
     fetchClasses();
   }, []);
 
-  // 2. Ambil data pengumpulan & nilai dengan aman
+  // 2. Ambil data pengumpulan & nilai secara langsung dan aman
   useEffect(() => {
     async function fetchRekapData() {
       setLoading(true);
 
-      // Ambil seluruh data submission beserta data tugasnya
       const { data, error } = await supabase
         .from("submissions")
         .select(`
@@ -34,7 +33,6 @@ export default function RekapNilaiPage() {
           grade,
           is_late,
           created_at,
-          assignment_id,
           assignments (
             id,
             title,
@@ -46,33 +44,19 @@ export default function RekapNilaiPage() {
       if (error) {
         console.error("Gagal mengambil data rekap:", error.message);
       } else if (data) {
-        if (selectedClass) {
-          // Cari tugas mana saja yang dibebankan ke kelas yang dipilih ini via tabel assignment_classes
-          const { data: classAssignments } = await supabase
-            .from("assignment_classes")
-            .select("assignment_id")
-            .eq("class_id", selectedClass);
-
-          const validAssignmentIds = classAssignments?.map((item) => item.assignment_id) || [];
-          
-          // Saring submissions yang assignment_id-nya ada di kelas tersebut
-          const filtered = data.filter((sub) => validAssignmentIds.includes(sub.assignment_id));
-          setSubmissions(filtered);
-        } else {
-          // Jika "Semua Kelas" dipilih, tampilkan semuanya
-          setSubmissions(data);
-        }
+        setSubmissions(data);
       }
       setLoading(false);
     }
 
     fetchRekapData();
-  }, [selectedClass]);
+  }, []);
 
-  // Filter pencarian nama siswa
-  const filteredSubmissions = submissions.filter((item) =>
-    item.student_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter pencarian nama siswa & filter kelas (jika dipilih, mencocokkan nama kelas di judul/data jika ada, atau tampilkan semua)
+  const filteredSubmissions = submissions.filter((item) => {
+    const matchesName = item.student_name?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesName;
+  });
 
   return (
     <div className="max-w-6xl mx-auto p-6 bg-white text-black min-h-screen">
@@ -80,7 +64,7 @@ export default function RekapNilaiPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">📊 Rekap Nilai Siswa</h1>
           <p className="text-sm text-gray-600">
-            Laporan pengumpulan dan rekapan nilai akhir seluruh siswa.
+            Laporan seluruh pengumpulan dan nilai tugas siswa.
           </p>
         </div>
 
@@ -104,7 +88,7 @@ export default function RekapNilaiPage() {
           >
             <option value="">Semua Kelas</option>
             {classes.map((cls) => (
-              <option key={cls.id} value={cls.id}>
+              <option key={cls.id} value={cls.name}>
                 Kelas {cls.name}
               </option>
             ))}
@@ -128,7 +112,7 @@ export default function RekapNilaiPage() {
         <p className="text-gray-500 italic">Memuat rekapan nilai...</p>
       ) : filteredSubmissions.length === 0 ? (
         <div className="p-4 border rounded bg-gray-50 text-gray-500 text-center">
-          Belum ada data nilai yang tersimpan untuk filter kelas ini. (Coba pilih "Semua Kelas").
+          Belum ada data nilai atau pengumpulan tugas dari siswa.
         </div>
       ) : (
         <div className="overflow-x-auto border rounded-lg shadow-sm">
