@@ -19,12 +19,12 @@ export default function RekapNilaiPage() {
     fetchClasses();
   }, []);
 
-  // 2. Ambil data pengumpulan & nilai
+  // 2. Ambil data pengumpulan & nilai dengan aman
   useEffect(() => {
     async function fetchRekapData() {
       setLoading(true);
 
-      // Ambil data submission beserta data tugasnya
+      // Ambil seluruh data submission beserta data tugasnya
       const { data, error } = await supabase
         .from("submissions")
         .select(`
@@ -46,9 +46,8 @@ export default function RekapNilaiPage() {
       if (error) {
         console.error("Gagal mengambil data rekap:", error.message);
       } else if (data) {
-        // Jika kelas dipilih, kita saring berdasarkan penugasan kelas tersebut
         if (selectedClass) {
-          // Ambil dulu assignment_id yang terhubung ke kelas yang dipilih
+          // Cari tugas mana saja yang dibebankan ke kelas yang dipilih ini via tabel assignment_classes
           const { data: classAssignments } = await supabase
             .from("assignment_classes")
             .select("assignment_id")
@@ -56,10 +55,11 @@ export default function RekapNilaiPage() {
 
           const validAssignmentIds = classAssignments?.map((item) => item.assignment_id) || [];
           
-          // Saring submissions yang tugasnya ada di kelas tersebut
-          const filteredByClass = data.filter((sub) => validAssignmentIds.includes(sub.assignment_id));
-          setSubmissions(filteredByClass);
+          // Saring submissions yang assignment_id-nya ada di kelas tersebut
+          const filtered = data.filter((sub) => validAssignmentIds.includes(sub.assignment_id));
+          setSubmissions(filtered);
         } else {
+          // Jika "Semua Kelas" dipilih, tampilkan semuanya
           setSubmissions(data);
         }
       }
@@ -128,7 +128,7 @@ export default function RekapNilaiPage() {
         <p className="text-gray-500 italic">Memuat rekapan nilai...</p>
       ) : filteredSubmissions.length === 0 ? (
         <div className="p-4 border rounded bg-gray-50 text-gray-500 text-center">
-          Belum ada data nilai yang tersimpan untuk filter ini.
+          Belum ada data nilai yang tersimpan untuk filter kelas ini. (Coba pilih "Semua Kelas").
         </div>
       ) : (
         <div className="overflow-x-auto border rounded-lg shadow-sm">
